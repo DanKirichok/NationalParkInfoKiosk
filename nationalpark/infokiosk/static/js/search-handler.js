@@ -1,3 +1,9 @@
+/**
+ * This file handles doing the ajax requests to the National Park API
+ * and calls the functions inside of html-handler to insert the information
+ * from the API into the page in an easy to read format
+ */
+
 $.ajaxSetup({ 
      beforeSend: function(xhr, settings) {
          function getCookie(name) {
@@ -27,18 +33,28 @@ $.ajaxSetup({
  * keys to the parks general information 
  */
 var apiResult = {};
+var resultsCounter = 0;
+var resultsPerPage = 10;
 
+/*
+ * Prevents page refreshing when the form is submitted
+ */
 $("form").submit(function(e) {
 	e.preventDefault(e);
 });
 
+/*
+ * Used for when the initial search is run by the user on the landing page
+ */
 $("#searchBtn").click(function(){
 	$("#searchBtn").css("display", "none");
 	$(".loading").css("display", "block");
+	resultsCounter = 0;
 	
 	data = {
 		state: $('#stateSelector').find(":selected").val(),
 		query: $('#search-name-input').val(),
+		start: 1,
 	}	
 	
 	$.ajax({
@@ -57,8 +73,7 @@ $("#searchBtn").click(function(){
 				scrollTop: $("#stateResults").offset().top
 			}, 2000);
 			
-			console.log(result["data"]["data"]);
-			$("#num-results").text(result["data"]["total"]);
+			var numResults = result["data"]["total"];
 			
 			for (var i = 0; i < result["data"]["data"].length; i++) {
 				parkName = result["data"]["data"][i]["name"];
@@ -69,11 +84,22 @@ $("#searchBtn").click(function(){
 				
 				apiResult[parkCode] = result["data"]["data"][i];
 				
-				addParkResult(parkName, parkDesc, parkDesig, parkCode, parkStates);
-				
+				/*
+				 * Since the API doesn't include built in designation
+				 * filtering from what it looks like, have to make custom
+				 */
+				var desigQuery = $('#desigSelector').find(":selected").val();
+								
+				if (desigQuery != "" && parkDesig.toLowerCase().trim().indexOf(desigQuery) > -1) {
+					addParkResult(parkName, parkDesc, parkDesig, parkCode, parkStates, true);
+				} else {
+					addParkResult(parkName, parkDesc, parkDesig, parkCode, parkStates, false);
+				}
 			}
 			
-			parkResultHandler();
+			parkResultHandler(numResults, true);
+			
+			$("#num-results").text(numResults);
 			
 	    },
 	    error: function(data){
@@ -84,7 +110,73 @@ $("#searchBtn").click(function(){
 	});
 });
 
-function parkResultHandler() {
+/*
+ * Used for switching pages through pagination
+ */
+function getParks(pageNum) {
+	$(".load-bar").css("display", "block");
+	
+	data = {
+		state: $('#stateSelector').find(":selected").val(),
+		query: $('#search-name-input').val(),
+		start: ((pageNum - 1) * resultsPerPage) + 1,
+	}	
+	
+	$.ajax({
+		url: "search/",
+		type: "POST",
+	    data: data,
+	    dataType: "json",
+	    success: function(result) {
+			$(".load-bar").css("display", "none");
+			
+			$("#search-results-list").empty();
+			$("#stateResults").css("display", "block");
+			
+			$('html, body').animate({
+				scrollTop: $("#stateResults").offset().top
+			}, 2000);
+			
+			var numResults = result["data"]["total"];
+			
+			for (var i = 0; i < result["data"]["data"].length; i++) {
+				parkName = result["data"]["data"][i]["name"];
+				parkDesc = result["data"]["data"][i]["description"];
+				parkDesig = result["data"]["data"][i]["designation"];
+				parkCode = result["data"]["data"][i]["parkCode"];
+				parkStates = result["data"]["data"][i]["states"];
+				
+				apiResult[parkCode] = result["data"]["data"][i];
+				
+				/*
+				 * Since the API doesn't include built in designation
+				 * filtering from what it looks like, have to make custom
+				 */
+				var desigQuery = $('#desigSelector').find(":selected").val();
+				
+				if (desigQuery != "" && parkDesig.toLowerCase().trim().indexOf(desigQuery) > -1) {
+					addParkResult(parkName, parkDesc, parkDesig, parkCode, parkStates, true);
+				} else {
+					addParkResult(parkName, parkDesc, parkDesig, parkCode, parkStates, false);
+				}
+			}
+			parkResultHandler(numResults, false);
+			
+			$("#num-results").text(numResults);
+	    },
+	    error: function(data){
+		    console.log("ERROR DOING PARK CALL");
+			$("#searchBtn").css("display", "inline-block");
+			$(".loading").css("display", "none");
+		}
+	});
+}
+
+function parkResultHandler(numResults, updatePag) {
+	if (updatePag) {
+		handlePagination(numResults);	
+	}
+	
 	$(".park-result").click(function(){
 		var parkCode = $(this).attr("id");
 		
@@ -116,18 +208,62 @@ function parkResultHandler() {
 	});
 }
 
-function addParkResult(parkName, parkDesc, parkDesig, parkCode, parkStates) {
-	var parkResultHTML = ` 
-		<a id = ${parkCode} class="list-group-item list-group-item-action flex-column align-items-start park-result">
-			<div class="d-flex w-100 justify-content-between">
-			  <h5 class="mb-1 park-name"><strong>${parkName}</strong></h5>
-			  <small class = "park-desig">${parkDesig}</small>
-			</div>
-			<small class="text-muted">${parkStates}</small>
-		</a>
+function handlePagination(numResults) {
+	// Resets pagination numbering for when there are new results
+	$("#results-pagination").empty();
+	var pagBaseHTML = `
+		<li class="page-item" id = "prev-btn"><a class="page-link">Previous</a></li>
+		<li class="page-item active"><a class="page-link page-num" id = "first-page">1</a></li>
 	`
+	$("#results-pagination").append(pagBaseHTML);
+	
+	// Gets the number of pages the results will have
+	var numPages = Math.floor(numResults/resultsPerPage);
+	
+	for (var i = 0; i < numPages; i++) {
+		var pageNumHTML = `
+			<li class="page-item"><a class="page-link page-num">${i + 2}</a></li>
+		`
 		
-	$("#search-results-list").append(parkResultHTML);
+		$("#results-pagination").append(pageNumHTML);
+	}
+	
+	// Ensures that the next button is the last button
+	var nextBtnHTML = `
+		<li class="page-item" id = "next-btn"><a class="page-link">Next</a></li>
+	`
+	$("#results-pagination").append(nextBtnHTML);
+	
+	// Handles changing pages of pagination
+	$(".page-item").click(function(){
+		if ($(this).attr("id") === "prev-btn") {
+			var newPage = $("#results-pagination>li.active").prev();
+			
+			if (newPage.attr("id") != "prev-btn") {
+				$("#results-pagination>li.active").removeClass("active");
+			
+				newPage.addClass("active");
+				getParks(parseInt(newPage.text()));
+			}
+			
+			
+		} else if ($(this).attr("id") === "next-btn") {			
+			var newPage = $("#results-pagination>li.active").next();
+			
+			if (newPage.attr("id") != "next-btn") {
+				$("#results-pagination>li.active").removeClass("active");
+			
+				newPage.addClass("active");
+				getParks(parseInt(newPage.text()));
+			}
+		} else {			
+			$("#results-pagination>li.active").removeClass("active");
+		
+			$(this).addClass("active");
+			getParks(parseInt($(this).text()));
+		}
+	});
+	
 }
 
 function getParkDescription(parkCode) {
@@ -198,37 +334,9 @@ function getVisitorCenterResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING VISITOR CENTER CALL");
 		}
 	});
-}
-
-function addVisitorCenter(centerName, centerDesc, centerURL) {
-	var visitorCenterHTML;
-	
-	// Sometimes the campUrl can be blank, so button if it is
-	if (centerURL.length > 0) {
-		visitorCenterHTML = `
-			<div class="card animated fadeIn">
-				<div class="card-body">
-					<h5 class="card-title">${centerName}</h5>
-					<p class="card-text">${centerDesc}</p>
-					<a href=${centerURL} target="_blank" class="card-link">Center Site</a>
-				</div>
-			</div>
-		`
-	} else {
-		visitorCenterHTML = `
-			<div class="card animated fadeIn">
-				<div class="card-body">
-					<h5 class="card-title">${centerName}</h5>
-					<p class="card-text">${centerDesc}</p>
-				</div>
-			</div>
-		`
-	}
-		
-	$("#park-vc-modal").append(visitorCenterHTML);
 }
 
 function getCampgroundResult(parkCode) {
@@ -266,39 +374,10 @@ function getCampgroundResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING CAMPGROUNDS CALL");
 		}
 	});
 }
-
-function addCampground(campName, campDesc, campURL) {
-	var campgroundHTML;
-	
-	// Sometimes the campUrl can be blank, so button if it is
-	if (campURL.length > 0) {
-		campgroundHTML = `
-			<div class="card animated fadeIn">
-				<div class="card-body">
-					<h5 class="card-title">${campName}</h5>
-					<p class="card-text">${campDesc}</p>
-					<a href=${campURL} target="_blank" class="card-link">Center Site</a>
-				</div>
-			</div>
-		`
-	} else {
-		campgroundHTML = `
-			<div class="card animated fadeIn">
-				<div class="card-body">
-					<h5 class="card-title">${campName}</h5>
-					<p class="card-text">${campDesc}</p>
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-cg-modal").append(campgroundHTML);
-}
-
 
 function getEventsResult(parkCode) {
 	$("#event-tab").css("display", "none");
@@ -334,48 +413,9 @@ function getEventsResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING EVENTS CALL");
 		}
 	});
-}
-
-function addEvent(eventLoc, eventDate, eventDesc, eventURL, eventTitle) {
-	var eventHTML;
-	
-	if (eventURL.length > 0) {
-		eventHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${eventTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${eventDesc}</p>
-					<p class="card-text">${eventLoc}</p>
-					<a href=${eventURL} target="_blank" class="card-link">More information about the event</a>
-				</div>
-				<div class="card-footer">
-					${eventDate}
-				</div>
-			</div>
-		`
-	} else {
-		eventHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${eventTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${eventDesc}</p>
-					<p class="card-text">${eventLoc}</p>
-				</div>
-				<div class="card-footer">
-					${eventDate}
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-e-modal").append(eventHTML);
 }
 
 function getAlertsResult(parkCode) {
@@ -412,40 +452,9 @@ function getAlertsResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING ALERTS CALL");
 		}
 	});
-}
-
-function addAlert(alertCat, alertDesc, alertTitle, alertURL) {
-	var alertHTML;
-	
-	if (alertURL.length > 0) {
-		alertHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${alertTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${alertDesc}</p>
-					<a href=${alertURL} target="_blank" class="card-link">More information about the alert</a>
-				</div>
-			</div>
-		`
-	} else {
-		alertHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${alertTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${alertDesc}</p>
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-a-modal").append(alertHTML);
 }
 
 function getNewsResult(parkCode) {
@@ -483,46 +492,9 @@ function getNewsResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING NEWS RESULTS CALL");
 		}
 	});
-}
-
-function addNews(newsAbs, newsDate, newsTitle, newsURL) {
-	var newsHTML;
-	
-	if (newsURL.length > 0) {
-		newsHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${newsTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${newsAbs}</p>
-					<a href=${newsURL} target="_blank" class="card-link">More information</a>
-				</div>
-				<div class="card-footer">
-					${newsDate}
-				</div>
-			</div>
-		`
-	} else {
-		newsHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${newsTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${newsAbs}</p>
-				</div>
-				<div class="card-footer">
-					${newsDate}
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-n-modal").append(newsHTML);
 }
 
 function getLessonsResult(parkCode) {
@@ -560,49 +532,9 @@ function getLessonsResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING LESSONS CALL");
 		}
 	});
-}
-
-function addLessons(lessonTitle, lessonURL, lessonGrade, lessonObj, lessonSub) {
-	var lessonsHTML;
-	
-	if (lessonURL.length > 0) {
-		lessonsHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${lessonTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${lessonObj}</p>
-					<p class="badge badge-primary">${lessonSub}</p>
-					<br />
-					<a href=${lessonURL} target="_blank" class="card-link">More information about the lesson</a>
-				</div>
-				<div class="card-footer">
-					${lessonGrade}
-				</div>
-			</div>
-		`
-	} else {
-		lessonsHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${lessonTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${lessonObj}</p>
-					<p class="badge badge-primary">${lessonSub}</p>	
-				</div>
-				<div class="card-footer">
-					${lessonGrade}
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-l-modal").append(lessonsHTML);
 }
 
 function getArticlesResult(parkCode) {
@@ -638,42 +570,9 @@ function getArticlesResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING ARTICLES CALL");
 		}
 	});
-}
-
-function addArticles(articleTitle, articleURL, articleDesc) {
-	var articlesHTML;
-	
-	if (articleURL.length > 0) {
-		articlesHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${articleTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${articleDesc}</p>
-				</div>
-				<div class="card-footer">
-					<a href=${articleURL} target="_blank" class="card-link">Click Here For Full Article</a>
-				</div>
-			</div>
-		`
-	} else {
-		articlesHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${articleTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${articleDesc}</p>
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-ar-modal").append(articlesHTML);
 }
 
 function getPeopleResult(parkCode) {
@@ -709,42 +608,9 @@ function getPeopleResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING PEOPLE CALL");
 		}
 	});
-}
-
-function addPeople(peopleTitle, peopleURL, peopleDesc) {
-	var peopleHTML;
-	
-	if (peopleURL.length > 0) {
-		peopleHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${peopleTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${peopleDesc}</p>
-				</div>
-				<div class="card-footer">
-					<a href=${peopleURL} target="_blank" class="card-link">Click here for more information</a>
-				</div>
-			</div>
-		`
-	} else {
-		peopleHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${peopleTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${peopleDesc}</p>
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-pe-modal").append(peopleHTML);
 }
 
 function getPlacesResult(parkCode) {
@@ -779,40 +645,7 @@ function getPlacesResult(parkCode) {
 			}
 	    },
 	    error: function(data){
-		  console.log("ERROR");
+		  console.log("ERROR DOING PLACES CALL");
 		}
 	});
-}
-
-function addPlaces(placesTitle, placesURL, placesDesc) {
-	var placesHTML;
-	
-	if (placesURL.length > 0) {
-		placesHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${placesTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${placesDesc}</p>
-				</div>
-				<div class="card-footer">
-					<a href=${placesURL} target="_blank" class="card-link">Click here for more information</a>
-				</div>
-			</div>
-		`
-	} else {
-		placesHTML = `
-			<div class="card mt-3">
-				<div class="card-header">
-					${placesTitle}
-				</div>
-				<div class="card-body">
-					<p class="card-text">${placesDesc}</p>
-				</div>
-			</div>
-		`
-	}
-	
-	$("#park-pl-modal").append(placesHTML);
 }

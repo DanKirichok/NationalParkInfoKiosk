@@ -16,7 +16,9 @@ def sendRequest(request, requestType):
     context = {}
     if request.method == "POST":
         if settings.NPS_API_KEY != None:
-            r = requests.get(settings.NPS_API_URL + "/" + requestType + "?parkCode=" + request.POST["parkCode"] + "&api_key=" + settings.NPS_API_KEY)
+            r = requests.get(settings.NPS_API_URL + "/" + requestType +
+             "?parkCode=" + request.POST["parkCode"] +
+             "&api_key=" + settings.NPS_API_KEY)
                        
             data = r.json()
             
@@ -38,6 +40,7 @@ def search(request):
             r = requests.get(settings.NPS_API_URL + "/parks?stateCode=" + request.POST["state"] +
              "&q=" + request.POST["query"] + 
              "&fields=images" +
+             "&limit=10&start=" + request.POST["start"] +
              "&api_key=" + settings.NPS_API_KEY)
             
             data = r.json()

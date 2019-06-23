@@ -24,11 +24,11 @@
 				<div class="row h-100">
 					<div class="col-12">
 						<div class="text-center m-0 vh-100 d-flex flex-column justify-content-center text-light">
-							<div class = "row ">
+							<div class = "row mb-5">
 								<h1 class="display-4 col-lg-6 mx-auto landing-content">National Park Info Kiosk</h1>
 							</div>
 							
-							
+							<!-- Form for finding national parks based on criteria-->
 							<div class="row">
 								<form id = "search-form" class="col-lg-6 col-sm-6 mx-auto landing-content">
 									<div class = "form-group">
@@ -90,6 +90,27 @@
 									</div>
 									
 									<div class = "form-group">
+										<label for = "desigSelector">Designation:</label>
+										<select id = "desigSelector" class = "form-control">
+											<option value=""></option>
+											<option value="national park">National Park</option>
+											<option value="national monument">National Monument</option>
+											<option value="national preserve">National Preserve</option>
+											<option value="national historic site">National Historic Site</option>
+											<option value="national historical park">National Historical Park</option>
+											<option value="national memorial">National Memorial</option>
+											<option value="national battlefield">National Battlefield</option>
+											<option value="national cemetery">National Cemetery</option>
+											<option value="national recreation area">National Recreation Area</option>
+											<option value="national seashore">National Seashore</option>
+											<option value="national lakeshore">National Lakeshore</option>
+											<option value="national river">National River</option>
+											<option value="national parkway">National Parkway</option>
+											<option value="national trail">National Trail</option>
+										</select>
+									</div>
+									
+									<div class = "form-group">
 										<label for="search-name-input">Search Name:</label>
 										<input type="text" class="form-control" id="search-name-input" placeholder="Yellowstone...">
 									</div>
@@ -109,12 +130,30 @@
 			<section id = "stateResults" class = "container mb-5">
 				<div class = "vh-100 align-items-center">
 					<h1 class = "mt-5 text-center"><text id = "num-results"></text> Results</h1>
+					
+					<!--Park results get populated here-->
 					<div id = "search-results-list" class="list-group">
+					</div>
+					
+					<div class = "pagination-container text-center mt-3">
+						<!--Loading bar for pagination-->
+						<div class="load-bar mb-4">
+							<div class="bar"></div>
+							<div class="bar"></div>
+							<div class="bar"></div>
+						</div>
+						
+						<!--Pagination menu-->
+						<nav class = "d-inline-block" aria-label="Page navigation example">
+							<ul class="pagination" id = "results-pagination">
+								<li class="page-item" id = "prev-btn"><a class="page-link">Previous</a></li>
+								<li class="page-item active"><a class="page-link page-num" id = "first-page">1</a></li>
+							</ul>
+						</nav>
 					</div>
 				</div>
 			</section>
-		</main>
-		
+		</main>		
 		<div class="modal fade park-result-modal" tabindex="-1" role="dialog" aria-labelledby="parkResultModal" aria-hidden="true">
 			<div class="modal-dialog modal-lg">
 				<div class="modal-content">
@@ -235,9 +274,6 @@
 						</div>	
 						</div>
 					</div>
-					<div class="modal-footer">
-					
-					</div>
 				</div>
 			</div>
 		</div>
@@ -251,5 +287,6 @@
 		<!-- Bootstrap.js CDN -->
 		<script src = "https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 		<script src = "{% static 'js/search-handler.js' %}"></script>
+		<script src = "{% static 'js/html-handler.js' %}"></script>
 	</body>
 </html>
