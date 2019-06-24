@@ -13,7 +13,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-What things you need to install the software and how to install them
+Make sure you have the following tools installed first
 
 Python3
 ```
@@ -27,8 +27,6 @@ https://github.com/pypa/pipenv
 
 
 ### Installing
-
-A step by step series of examples that tell you how to get a development env running
 
 If you have have successfully installed Python3 and Pipenv, then you can create a pipenv shell which will create a virtual environment and automatically add any needed Python libraries to run the project.
 
